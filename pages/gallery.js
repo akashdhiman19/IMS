@@ -146,6 +146,16 @@ export default function Gallery() {
     });
   }
 
+  // --- Select All/Deselect All Logic ---
+  const allSelected = images.length > 0 && selectedImages.size === images.length;
+  function handleSelectAllToggle() {
+    if (allSelected) {
+      setSelectedImages(new Set());
+    } else {
+      setSelectedImages(new Set(images.map(img => img._id)));
+    }
+  }
+
   // Keyboard navigation in modal (Esc to close, arrows to switch)
   useEffect(() => {
     if (!modalOpen) return;
@@ -177,7 +187,7 @@ export default function Gallery() {
       <h1 className="text-3xl sm:text-4xl font-extrabold mb-8 text-blue-800 drop-shadow text-center">
         Bus Image Gallery
       </h1>
-      {/* Category Dropdown */}
+      {/* Category Dropdowns */}
       <div className="mb-4 flex flex-col sm:flex-row gap-4">
         <div>
           <label className="font-semibold mr-2">Category:</label>
@@ -230,7 +240,7 @@ export default function Gallery() {
         )}
       </div>
 
-      {/* WhatsApp Share for Folder and Select */}
+      {/* WhatsApp Share, Select All/Deselect All */}
       {selectedBus && images.length > 0 && (
         <div className="mb-6 flex gap-3 items-center flex-wrap">
           <button
@@ -238,6 +248,16 @@ export default function Gallery() {
             onClick={handleWhatsAppShareSelected}
           >
             Share Selected Images (Native/ZIP)
+          </button>
+          <button
+            className={`rounded px-4 py-2 font-semibold shadow transition
+              ${allSelected
+                ? "bg-gray-200 text-blue-600 hover:bg-gray-100"
+                : "bg-blue-600 text-white hover:bg-blue-700"}
+            `}
+            onClick={handleSelectAllToggle}
+          >
+            {allSelected ? "Deselect All" : "Select All"}
           </button>
           <span className="text-base text-gray-600">
             {selectedImages.size

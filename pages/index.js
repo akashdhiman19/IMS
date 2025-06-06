@@ -31,7 +31,7 @@ export default function Home() {
                 ⬆️ Upload Images
               </button>
             </a>
-          </Link>
+          </Link> 
         </div>
       </div>
 

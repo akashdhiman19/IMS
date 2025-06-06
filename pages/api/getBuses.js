@@ -1,4 +1,4 @@
-// pages/api/getBuses.js
+
 import { sanity } from "../../lib/sanity";
 
 export default async function handler(req, res) {
