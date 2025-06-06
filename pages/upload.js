@@ -6,7 +6,7 @@ export default function UploadPage() {
   const [selectedBus, setSelectedBus] = useState("");
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0); // <-- Progress state
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const inputRef = useRef();
@@ -17,6 +17,7 @@ export default function UploadPage() {
       .then((data) => setBuses(data.buses || []));
   }, []);
 
+  // File selector & ZIP extractor: always sets correct type!
   async function handleFiles(event) {
     setError("");
     setSuccess("");
@@ -27,9 +28,13 @@ export default function UploadPage() {
           const zip = await JSZip.loadAsync(file);
           for (const name in zip.files) {
             const entry = zip.files[name];
-            if (!entry.dir && /\.(jpe?g|png)$/i.test(entry.name)) {
+            if (!entry.dir && /\.(jpe?g|jpeg|png)$/i.test(entry.name)) {
               const blob = await entry.async("blob");
-              newFiles.push(new File([blob], entry.name, { type: blob.type }));
+              // Set type correctly based on extension!
+              let type = "";
+              if (/\.jpe?g$/i.test(entry.name)) type = "image/jpeg";
+              if (/\.png$/i.test(entry.name)) type = "image/png";
+              newFiles.push(new File([blob], entry.name, { type }));
             }
           }
         } catch (e) {
@@ -39,6 +44,9 @@ export default function UploadPage() {
         newFiles.push(file);
       }
     }
+    // Log file names/types for debug
+    console.log("Files ready for upload:");
+    newFiles.forEach(f => console.log(f.name, f.type));
     setFiles((prev) => [...prev, ...newFiles]);
   }
 
@@ -49,6 +57,9 @@ export default function UploadPage() {
       setError("Please select a bus and choose at least one file.");
       return;
     }
+    // Show all files/types before upload
+    console.log("Uploading files:");
+    files.forEach(f => console.log(f.name, f.type));
     setUploading(true);
     setProgress(0);
 
@@ -56,7 +67,6 @@ export default function UploadPage() {
     formData.append("busId", selectedBus);
     files.forEach((file) => formData.append("files", file));
 
-    // Use XMLHttpRequest for progress
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/uploadBusImages");
 
@@ -70,6 +80,7 @@ export default function UploadPage() {
     xhr.onload = () => {
       setUploading(false);
       setProgress(100);
+      console.log("XHR Response:", xhr.status, xhr.responseText);
       if (xhr.status === 200) {
         setFiles([]);
         setSuccess("Upload successful!");
@@ -91,6 +102,7 @@ export default function UploadPage() {
       setUploading(false);
       setError("Upload failed. Please try again.");
       setTimeout(() => setProgress(0), 1000);
+      console.error("XHR error!", xhr.status, xhr.statusText);
     };
 
     xhr.send(formData);
@@ -128,12 +140,14 @@ export default function UploadPage() {
           <strong>Files ready for upload:</strong>
           <ul className="list-disc pl-6">
             {files.map((file, idx) => (
-              <li key={idx}>{file.name}</li>
+              <li key={idx}>
+                {file.name}{" "}
+                <span className="text-gray-500 text-xs">({file.type || "unknown"})</span>
+              </li>
             ))}
           </ul>
         </div>
       )}
-      {/* Progress Bar */}
       {uploading && (
         <div className="mb-4 w-full">
           <div className="h-5 bg-gray-200 rounded-full overflow-hidden">

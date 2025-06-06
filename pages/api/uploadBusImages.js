@@ -10,35 +10,40 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  console.log("Received request:", req.method, req.url);
+
   if (req.method !== "POST") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") {
+      res.status(200).end();
+      return;
+    }
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
 
-  // Increase max size (1GB); adjust if needed
   const form = formidable({
     multiples: true,
     maxTotalFileSize: 1024 * 1024 * 1024, // 1GB
-    maxFileSize: 1024 * 1024 * 1024,      // 1GB per file
+    maxFileSize: 1024 * 1024 * 1024,
     keepExtensions: true
   });
 
   form.parse(req, async (err, fields, files) => {
     if (err) {
-      // Too large
       if (err.code === 1009) {
         return res.status(413).json({
           error: "Uploaded files exceed the 1GB server limit. If you are using Vercel/Netlify, try a file under 100MB.",
         });
       }
-      // Other error
       console.error("Formidable error", err);
       return res.status(500).json({
         error: "File parsing error. " + (err.message || "Unknown error"),
       });
     }
 
-    // Ensure busId is always a string
     let busId = fields.busId;
     if (Array.isArray(busId)) busId = busId[0];
     if (!busId) {
@@ -51,17 +56,23 @@ export default async function handler(req, res) {
     }
     if (!Array.isArray(fileArr)) fileArr = [fileArr];
 
-    try {
-      const results = [];
-      for (const file of fileArr) {
-        const data = fs.readFileSync(file.filepath);
+    // Only allow JPEG/PNG, and log all files/types
+    const allowedTypes = ['image/jpeg', 'image/png'];
+    const invalidFiles = [];
+    const results = [];
 
-        // Upload image asset to Sanity
+    for (const file of fileArr) {
+      console.log(`Checking file: ${file.originalFilename}, type: ${file.mimetype}`);
+      if (!allowedTypes.includes(file.mimetype)) {
+        invalidFiles.push(file.originalFilename);
+        continue; // skip file
+      }
+      try {
+        const data = fs.readFileSync(file.filepath);
         const uploadRes = await sanity.assets.upload("image", data, {
           filename: file.originalFilename,
         });
 
-        // Create busImage document
         const imageDoc = {
           _type: "busImage",
           bus: { _type: "reference", _ref: busId },
@@ -78,11 +89,23 @@ export default async function handler(req, res) {
 
         const createdDoc = await sanity.create(imageDoc);
         results.push(createdDoc);
+      } catch (e) {
+        console.error("Upload error:", e, file.originalFilename);
+        invalidFiles.push(file.originalFilename + " (upload error)");
       }
-      res.status(200).json({ success: true, images: results });
-    } catch (e) {
-      console.error("Upload error:", e);
-      res.status(500).json({ error: "Failed to upload images. Try again." });
     }
+
+    if (results.length === 0) {
+      return res.status(400).json({
+        error: "No valid image files uploaded. Only JPEG and PNG images are supported.",
+        invalidFiles,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      images: results,
+      invalidFiles: invalidFiles.length > 0 ? invalidFiles : undefined
+    });
   });
 }
